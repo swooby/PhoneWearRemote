@@ -1,0 +1,81 @@
+name: Build Android App (apk)
+
+on:
+  push:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code and submodule(s)
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      # Set Current Date As Env Variable
+      - name: Set current date as env variable
+        run: echo "date_today=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      # Set Repository Name As Env Variable
+      - name: Set repository name as env variable
+        run: echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
+
+      - name: Set Up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu' # See 'Supported distributions' for available options
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
+      # Run Build Project
+      - name: Build gradle project
+        run: ./gradlew build
+
+      # Run Tests Build
+      - name: Run gradle tests
+        run: ./gradlew test
+
+      # Create APK Debug
+      - name: Build apk debug project (APK)
+        run: ./gradlew assembleDebug
+
+      # Create APK Release
+      - name: Build apk release project (APK)
+        run: ./gradlew assembleRelease
+
+      # Upload Artifact Build
+      # Noted For Output mobile/build/outputs/apk/debug/
+      - name: Upload mobile APK Debug - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - mobile - APK(s) debug generated
+          path: mobile/build/outputs/apk/debug/
+
+      # Noted For Output mobile/build/outputs/apk/release/
+      - name: Upload mobile APK Release - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - mobile - APK(s) release generated
+          path: mobile/build/outputs/apk/release/
+
+      # Noted For Output wear/build/outputs/apk/debug/
+      - name: Upload wear APK Debug - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - wear - APK(s) debug generated
+          path: wear/build/outputs/apk/debug/
+
+      # Noted For Output wear/build/outputs/apk/release/
+      - name: Upload wear APK Release - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - wear - APK(s) release generated
+          path: wear/build/outputs/apk/release/
