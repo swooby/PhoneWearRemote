@@ -1,5 +1,8 @@
 package com.swooby.phonewearremote
 
+import android.content.Context
+import android.media.MediaPlayer
+import android.util.Log
 import androidx.wear.phone.interactions.PhoneTypeHelper
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObject
@@ -7,6 +10,8 @@ import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.staticProperties
 
 object Utils {
+    private const val TAG = "Utils"
+
     /**
      * Creates a map of a class' field values to names
      */
@@ -65,5 +70,24 @@ object Utils {
         }
 
         return value.toString()
+    }
+
+    fun playAudioResourceOnce(
+        context: Context,
+        audioResourceId: Int,
+        volume: Float = 0.7f,
+        state: Any? = null,
+        onCompletion: ((Any?) -> Unit)? = null
+    ) {
+        Log.d(TAG, "+playAudioResourceOnce(..., audioResourceId=$audioResourceId, ...)")
+        MediaPlayer.create(context, audioResourceId).apply {
+            setVolume(volume, volume)
+            setOnCompletionListener {
+                onCompletion?.invoke(state)
+                it.release()
+                Log.d(TAG, "-playAudioResourceOnce(..., audioResourceId=$audioResourceId, ...)")
+            }
+            start()
+        }
     }
 }

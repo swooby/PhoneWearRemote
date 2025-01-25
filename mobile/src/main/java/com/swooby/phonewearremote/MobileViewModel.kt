@@ -4,14 +4,14 @@ import android.app.Application
 import android.util.Log
 import com.swooby.phonewearremote.Utils.playAudioResourceOnce
 
-class WearViewModel(application: Application) :
+class MobileViewModel(application: Application) :
     SharedViewModel(application) {
     override val TAG: String
-        get() = "WearViewModel"
+        get() = "MobileViewModel"
     override val remoteTypeName: String
-        get() = "MOBILE"
+        get() = "WEAR"
     override val remoteCapabilityName: String
-        get() = "verify_remote_example_mobile_app"
+        get() = "verify_remote_example_wear_app"
 
     override fun pushToTalk(on: Boolean, sourceNodeId: String?) {
         Log.i(TAG, "pushToTalk(on=$on)")
@@ -29,26 +29,23 @@ class WearViewModel(application: Application) :
             }
         }
 
-        var doPushToTalkLocal = true
-
         if (sourceNodeId == null) {
-            // request from local/wear
-            Log.d(TAG, "pushToTalk: PTT $on **from** local/wear...")
+            // request from local/mobile
+            Log.d(TAG, "pushToTalk: PTT $on **from** local/mobile...")
             val remoteAppNodeId = _remoteAppNodeId.value
             if (remoteAppNodeId != null) {
-                doPushToTalkLocal = false
-                // tell remote/mobile app to do the PTTing...
+                // tell remote/wear app that we are PTTing...
                 sendPushToTalkCommand(remoteAppNodeId, on)
             }
+            //...
         } else {
-            // request from remote/mobile
+            // request from remote/wear
             _remoteAppNodeId.value = sourceNodeId
-            Log.d(TAG, "pushToTalk: PTT $on **from** remote/mobile...")
+            Log.d(TAG, "pushToTalk: PTT $on **from** remote/wear...")
+            //...
         }
 
-        if (doPushToTalkLocal) {
-            pushToTalkLocal(on)
-        }
+        pushToTalkLocal(on)
     }
 
     override fun pushToTalkLocal(on: Boolean) {

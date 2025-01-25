@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 rootProject.name = "Phone Wear Remote"
 include(":mobile")
 include(":wear")
- 
+include(":shared")

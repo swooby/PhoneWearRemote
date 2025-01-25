@@ -7,6 +7,7 @@ package com.swooby.phonewearremote.presentation
 
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -20,17 +21,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,10 +41,14 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.tooling.preview.devices.WearDevices
+import com.swooby.phonewearremote.SharedViewModel
 import com.swooby.phonewearremote.WearViewModel
 import com.swooby.phonewearremote.presentation.theme.PhoneWearRemoteTheme
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     private val wearViewModel: WearViewModel by viewModels()
 
@@ -77,11 +83,6 @@ fun WearApp(
     targetNameDefault: String,
     wearViewModel: WearViewModel? = null,
 ) {
-    @Suppress("LocalVariableName")
-    val TAG = "WearApp"
-
-    val phoneAppNodeId by wearViewModel?.phoneAppNodeId?.collectAsState() ?: remember { mutableStateOf(null) }
-
     PhoneWearRemoteTheme {
         Box(
             modifier = Modifier
@@ -90,56 +91,39 @@ fun WearApp(
             contentAlignment = Alignment.Center
         ) {
             TimeText()
-            RemoteButton(
-                targetName = if (phoneAppNodeId != null) "Phone" else targetNameDefault,
+            KeepScreenOnComposable()
+            PushToTalkButton(
+                wearViewModel = wearViewModel,
+                targetNameDefault = targetNameDefault,
                 onPushToTalkStart = {
-                    @Suppress("NAME_SHADOWING")
-                    val phoneAppNodeId = phoneAppNodeId
-                    if (phoneAppNodeId != null) {
-                        Log.d(TAG, "onClick: PTT on phone...")
-                        wearViewModel?.sendPushToTalkCommand(phoneAppNodeId, true)
-                    } else {
-                        Log.d(TAG, "onClick: TODO: PTT on local ...")
-                        // ...
-                    }
-                    true
+                    wearViewModel?.pushToTalk(true)
                 },
                 onPushToTalkStop = {
-                    @Suppress("NAME_SHADOWING")
-                    val phoneAppNodeId = phoneAppNodeId
-                    if (phoneAppNodeId != null) {
-                        Log.d(TAG, "onClick: PTT off phone...")
-                        wearViewModel?.sendPushToTalkCommand(phoneAppNodeId, false)
-                    } else {
-                        Log.d(TAG, "onClick: TODO: PTT off local ...")
-                        // ...
-                    }
-                    true
+                    wearViewModel?.pushToTalk(false)
                 },
             )
         }
     }
 }
 
-enum class PTTState {
-    Idle,
-    Pressed
-}
-
 @Composable
-fun RemoteButton(
-    targetName: String,
+fun PushToTalkButton(
+    wearViewModel: WearViewModel? = null,
+    targetNameDefault: String,
     enabled: Boolean = true,
-    onPushToTalkStart: (pttState: PTTState) -> Boolean = {
-        Log.d("PTT", "Push-to-Talk Start")
-        false
-    },
-    onPushToTalkStop: (pttState: PTTState) -> Boolean = {
-        Log.d("PTT", "Push-to-Talk Stop")
-        false
-    }
+    onPushToTalkStart: () -> Unit = {},
+    onPushToTalkStop: () -> Unit = {}
 ) {
-    var pttState by remember { mutableStateOf(PTTState.Idle) }
+    val pttState by wearViewModel
+        ?.pushToTalkState
+        ?.collectAsState()
+        ?: remember { mutableStateOf(SharedViewModel.PttState.Idle) }
+
+    val phoneAppNodeId by wearViewModel
+        ?.remoteAppNodeId
+        ?.collectAsState()
+        ?: remember { mutableStateOf(null) }
+    val targetName = if (phoneAppNodeId != null) "Phone" else targetNameDefault
 
     val disabledColor = MaterialTheme.colors.onSurface.copy(alpha = 0.38f)
     val boxAlpha = if (enabled) 1.0f else 0.38f
@@ -150,7 +134,7 @@ fun RemoteButton(
             .size(120.dp)
             .border(4.dp, if (enabled) MaterialTheme.colors.primary else disabledColor, shape = CircleShape)
             .background(
-                color = if (pttState == PTTState.Pressed) MaterialTheme.colors.primary else MaterialTheme.colors.surface,
+                color = if (pttState == SharedViewModel.PttState.Pressed) MaterialTheme.colors.primary else MaterialTheme.colors.surface,
                 shape = CircleShape
             )
             .let { baseModifier ->
@@ -158,23 +142,11 @@ fun RemoteButton(
                     baseModifier.pointerInput(Unit) {
                         awaitEachGesture {
                             awaitFirstDown()
-                            if (pttState == PTTState.Idle) {
-                                pttState = PTTState.Pressed
-                                if (!onPushToTalkStart(pttState)) {
-                                    //provideHapticFeedback(context)
-                                    //provideAudibleFeedback(context, pttState)
-                                }
-                            }
+                            onPushToTalkStart()
                             do {
                                 val event = awaitPointerEvent()
                             } while (event.changes.any { !it.changedToUp() })
-                            if (pttState == PTTState.Pressed) {
-                                pttState = PTTState.Idle
-                                if (!onPushToTalkStop(pttState)) {
-                                    //provideHapticFeedback(context)
-                                    //provideAudibleFeedback(context, pttState)
-                                }
-                            }
+                            onPushToTalkStop()
                         }
                     }
                 } else {
@@ -200,5 +172,16 @@ fun RemoteButton(
             textAlign = TextAlign.Center,
             text = targetName
         )
+    }
+}
+
+@Composable
+fun KeepScreenOnComposable() {
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        view.keepScreenOn = true
+        onDispose {
+            view.keepScreenOn = false
+        }
     }
 }

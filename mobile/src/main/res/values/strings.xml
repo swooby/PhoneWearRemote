@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Phone Wear Remote</string>
+    <string name="title_activity_mobile">MobileActivity</string>
 </resources>
